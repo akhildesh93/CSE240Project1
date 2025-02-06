@@ -8,6 +8,9 @@
 #include <stdio.h>
 #include <math.h>
 #include "predictor.h"
+#include <string.h>
+#include <cstring>
+#include <stdint.h>
 
 //
 // TODO:Student Information
@@ -233,7 +236,50 @@ void cleanup_tournament()
   free(selector);
 }
 
+#define HISTORY_LENGTH 62
+#define NUM_PERCEPTRONS 125
+#define THRESHOLD (1.93 * HISTORY_LENGTH + 14)
 
+uint64_t globalHistory = 0;  
+int perceptrons[NUM_PERCEPTRONS][HISTORY_LENGTH + 1]; 
+
+void init_perceptron() {
+    memset(perceptrons, 0, sizeof(perceptrons));
+}
+
+uint8_t perceptron_prediction(uint32_t pc) {
+    int index = pc % NUM_PERCEPTRONS;
+    int y = perceptrons[index][0]; 
+    
+    for (int i = 0; i < HISTORY_LENGTH; i++) {
+        int historyBit = (globalHistory >> i) & 1;
+        y += perceptrons[index][i + 1] * (historyBit ? 1 : -1);
+    }
+    
+    return y >= 0 ? TAKEN : NOTTAKEN;
+}
+
+void train_perceptron(uint32_t pc, uint8_t outcome) {
+    int index = pc % NUM_PERCEPTRONS;
+    int y = perceptrons[index][0];
+    
+    for (int i = 0; i < HISTORY_LENGTH; i++) {
+        int historyBit = (globalHistory >> i) & 1;
+        y += perceptrons[index][i + 1] * (historyBit ? 1 : -1);
+    }
+    
+    int actual = outcome == TAKEN ? 1 : -1;
+    
+    if ((y >= 0) != (actual == 1) || abs(y) <= THRESHOLD) {
+        perceptrons[index][0] += actual;
+        for (int i = 0; i < HISTORY_LENGTH; i++) {
+            int historyBit = (globalHistory >> i) & 1;
+            perceptrons[index][i + 1] += actual * (historyBit ? 1 : -1);
+        }
+    }
+    
+    globalHistory = ((globalHistory << 1) | (outcome == TAKEN ? 1 : 0)) & ((1ULL << HISTORY_LENGTH) - 1); 
+}
 
 
 void init_predictor()
@@ -249,6 +295,7 @@ void init_predictor()
     init_tournament(); 
     break;
   case CUSTOM:
+    init_perceptron();
     break;
   default:
     break;
@@ -272,7 +319,7 @@ uint32_t make_prediction(uint32_t pc, uint32_t target, uint32_t direct)
   case TOURNAMENT:
     return tournament_predict(pc);
   case CUSTOM:
-    return NOTTAKEN;
+    return perceptron_prediction(pc);
   default:
     break;
   }
@@ -299,9 +346,10 @@ void train_predictor(uint32_t pc, uint32_t target, uint32_t outcome, uint32_t co
     case TOURNAMENT:
       return train_tournament(pc, outcome);
     case CUSTOM:
-      return;
+      return train_perceptron(pc, outcome);
     default:
       break;
     }
   }
 }
+
