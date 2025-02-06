@@ -236,11 +236,11 @@ void cleanup_tournament()
   free(selector);
 }
 
-#define HISTORY_LENGTH 40
-#define NUM_PERCEPTRONS 199
+#define HISTORY_LENGTH 25
+#define NUM_PERCEPTRONS 320
 #define THRESHOLD (1.93 * HISTORY_LENGTH + 14)
 
-uint64_t globalHistory = 0;  
+uint32_t globalHistory = 0;  
 int perceptrons[NUM_PERCEPTRONS][HISTORY_LENGTH + 1]; 
 
 void init_perceptron() {
