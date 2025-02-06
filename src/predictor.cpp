@@ -30,7 +30,7 @@ const char *bpName[4] = {"Static", "Gshare",
 // define number of bits required for indexing the BHT here.
 int ghistoryBits = 16; // Number of bits used for Global History
 int lhistoryBits = 16;
-int chooserBits = 16;
+int chooserBits = 15;
 int bpType;            // Branch Prediction Type
 int verbose;
 
@@ -151,8 +151,14 @@ void init_tournament()
   for (i = 0; i < bht_entries; i++)
   {
     bht_gshare[i] = WN;  
+  }
+  for (i = 0; i< lht_entries; i++)
+  {
     bht_lht[i] = WN;    
     local_history[i] = 0; 
+  }
+  for (i = 0; i< selector_entries; i++)
+  {
     selector[i] = WN;  
   }
 
@@ -189,19 +195,21 @@ void train_tournament(uint32_t pc, uint8_t outcome)
   uint8_t gshare_prediction = gshare_predict(pc);
   uint8_t lht_prediction = (bht_lht[lht_index] == WT || bht_lht[lht_index] == ST) ? TAKEN : NOTTAKEN;
 
+  uint32_t selector_index = (pc ^ ghistory) & ((1 << chooserBits) - 1);
+
   // Update selector based on otucome for each selector and actual outcome
   if (gshare_prediction == outcome && lht_prediction != outcome) //if gshare is correct and local is wrong
   {
-    if (selector[gshare_index] < ST)
+    if (selector[selector_index] < ST)
     {
-      selector[gshare_index]++; //increment gshare priority
+      selector[selector_index]++; //increment gshare priority
     }
   }
   else if (lht_prediction == outcome && gshare_prediction != outcome) // if local is correct and gshare is wrong
   {
-    if (selector[gshare_index] > SN)
+    if (selector[selector_index] > SN)
     {
-      selector[gshare_index]--; //decrement gshare priority
+      selector[selector_index]--; //decrement gshare priority
     }
   }
 
@@ -296,6 +304,9 @@ void init_custom()
   for (i = 0; i < bht_entries; i++)
   {
     bht_gshare[i] = WN;  
+  }
+  for (i = 0; i< selector_entries; i++)
+  {
     selector[i] = WN;  
   }
 
@@ -333,19 +344,22 @@ void train_custom(uint32_t pc, uint8_t outcome)
 
   uint8_t perceptron_pred = perceptron_prediction(pc);
 
+  uint32_t selector_index = (pc ^ ghistory) & ((1 << chooserBits) - 1);
+
+
   // Update selector based on otucome for each selector and actual outcome
   if (gshare_prediction == outcome && perceptron_pred != outcome) //if gshare is correct and local is wrong
   {
-    if (selector[gshare_index] < ST)
+    if (selector[selector_index] < ST)
     {
-      selector[gshare_index]++; //increment gshare priority
+      selector[selector_index]++; //increment gshare priority
     }
   }
   else if (perceptron_pred == outcome && gshare_prediction != outcome) // if local is correct and gshare is wrong
   {
-    if (selector[gshare_index] > SN)
+    if (selector[selector_index] > SN)
     {
-      selector[gshare_index]--; //decrement gshare priority
+      selector[selector_index]--; //decrement gshare priority
     }
   }
 
