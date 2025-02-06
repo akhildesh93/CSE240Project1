@@ -25,9 +25,9 @@ const char *bpName[4] = {"Static", "Gshare",
                          "Tournament", "Custom"};
 
 // define number of bits required for indexing the BHT here.
-int ghistoryBits = 17; // Number of bits used for Global History
-int lhistoryBits = 17;
-int chooserBits = 17;
+int ghistoryBits = 16; // Number of bits used for Global History
+int lhistoryBits = 16;
+int chooserBits = 16;
 int bpType;            // Branch Prediction Type
 int verbose;
 
@@ -182,10 +182,27 @@ void train_tournament(uint32_t pc, uint8_t outcome)
   uint32_t gshare_index = pc_lower_bits ^ ghistory_lower_bits;
   uint32_t lht_index = pc_lower_bits;
 
-  // Update gshare
-  train_gshare(pc, outcome);
+  //make two predictions
+  uint8_t gshare_prediction = gshare_predict(pc);
+  uint8_t lht_prediction = (bht_lht[lht_index] == WT || bht_lht[lht_index] == ST) ? TAKEN : NOTTAKEN;
 
-  // update lht
+  // Update selector based on otucome for each selector and actual outcome
+  if (gshare_prediction == outcome && lht_prediction != outcome) //if gshare is correct and local is wrong
+  {
+    if (selector[gshare_index] < ST)
+    {
+      selector[gshare_index]++; //increment gshare priority
+    }
+  }
+  else if (lht_prediction == outcome && gshare_prediction != outcome) // if local is correct and gshare is wrong
+  {
+    if (selector[gshare_index] > SN)
+    {
+      selector[gshare_index]--; //decrement gshare priority
+    }
+  }
+
+  // update lht based on actual outcome
   if (outcome == TAKEN)
   {
     if (bht_lht[lht_index] < ST)
@@ -201,27 +218,11 @@ void train_tournament(uint32_t pc, uint8_t outcome)
     }
   }
 
-  // update lhr
+  // update local history
   local_history[lht_index] = (local_history[lht_index] << 1) | outcome;
 
-  // updat selector
-  uint8_t gshare_prediction = gshare_predict(pc);
-  uint8_t lht_prediction = (bht_lht[lht_index] == WT || bht_lht[lht_index] == ST) ? TAKEN : NOTTAKEN;
-
-  if (gshare_prediction == outcome && lht_prediction != outcome)
-  {
-    if (selector[gshare_index] < ST)
-    {
-      selector[gshare_index]++;
-    }
-  }
-  else if (lht_prediction == outcome && gshare_prediction != outcome)
-  {
-    if (selector[gshare_index] > SN)
-    {
-      selector[gshare_index]--;
-    }
-  }
+  // update gshare ght
+  train_gshare(pc, outcome);
 }
 
 void cleanup_tournament()
