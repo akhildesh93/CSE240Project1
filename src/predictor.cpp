@@ -30,7 +30,9 @@ const char *bpName[4] = {"Static", "Gshare",
 // define number of bits required for indexing the BHT here.
 int ghistoryBits = 16; // Number of bits used for Global History
 int lhistoryBits = 16;
-int chooserBits = 15;
+int chooserBits = 16;
+
+int chooserBitsTournament = 10;
 int bpType;            // Branch Prediction Type
 int verbose;
 
@@ -139,7 +141,7 @@ void init_tournament()
   //entries
   int bht_entries = 1 << ghistoryBits;
   int lht_entries = 1 << lhistoryBits;
-  int selector_entries = 1 << chooserBits;
+  int selector_entries = 1 << chooserBitsTournament;
 
   bht_gshare = (uint8_t *)malloc(bht_entries * sizeof(uint8_t));
   bht_lht = (uint8_t *)malloc(lht_entries * sizeof(uint8_t)); 
@@ -169,7 +171,7 @@ uint32_t tournament_predict(uint32_t pc)
 {
   uint32_t gshare_index = (pc ^ ghistory) & ((1 << ghistoryBits) - 1);
   uint32_t lht_index = pc & ((1 << lhistoryBits) - 1);
-  uint32_t selector_index = (pc ^ ghistory) & ((1 << chooserBits) - 1);
+  uint32_t selector_index = (pc ^ ghistory) & ((1 << chooserBitsTournament) - 1);
 
   //make two predictions
   uint8_t gshare_prediction = (bht_gshare[gshare_index] >= WT) ? TAKEN : NOTTAKEN;
@@ -195,7 +197,7 @@ void train_tournament(uint32_t pc, uint8_t outcome)
   uint8_t gshare_prediction = gshare_predict(pc);
   uint8_t lht_prediction = (bht_lht[lht_index] == WT || bht_lht[lht_index] == ST) ? TAKEN : NOTTAKEN;
 
-  uint32_t selector_index = (pc ^ ghistory) & ((1 << chooserBits) - 1);
+  uint32_t selector_index = (pc ^ ghistory) & ((1 << chooserBitsTournament) - 1);
 
   // Update selector based on otucome for each selector and actual outcome
   if (gshare_prediction == outcome && lht_prediction != outcome) //if gshare is correct and local is wrong
@@ -245,7 +247,7 @@ void cleanup_tournament()
 }
 
 #define HISTORY_LENGTH 25
-#define NUM_PERCEPTRONS 320
+#define NUM_PERCEPTRONS 274
 #define THRESHOLD (1.6 * HISTORY_LENGTH + 14)
 
 uint32_t globalHistory = 0;  
@@ -298,7 +300,7 @@ void init_custom()
 
   bht_gshare = (uint8_t *)malloc(bht_entries * sizeof(uint8_t));
 
-  selector = (uint8_t *)malloc(selector_entries * sizeof(uint8_t)); // Selector table 
+  selector = (uint8_t *)malloc(selector_entries * sizeof(uint8_t)); 
 
   int i = 0;
   for (i = 0; i < bht_entries; i++)
@@ -440,4 +442,3 @@ void train_predictor(uint32_t pc, uint32_t target, uint32_t outcome, uint32_t co
     }
   }
 }
-
