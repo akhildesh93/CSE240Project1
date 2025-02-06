@@ -238,7 +238,7 @@ void cleanup_tournament()
 
 #define HISTORY_LENGTH 25
 #define NUM_PERCEPTRONS 320
-#define THRESHOLD (1.93 * HISTORY_LENGTH + 14)
+#define THRESHOLD (1.6 * HISTORY_LENGTH + 14)
 
 uint32_t globalHistory = 0;  
 int perceptrons[NUM_PERCEPTRONS][HISTORY_LENGTH + 1]; 
@@ -281,6 +281,80 @@ void train_perceptron(uint32_t pc, uint8_t outcome) {
     globalHistory = ((globalHistory << 1) | (outcome == TAKEN ? 1 : 0)) & ((1ULL << HISTORY_LENGTH) - 1); 
 }
 
+void init_custom()
+{
+  init_perceptron();
+  //entries
+  int bht_entries = 1 << ghistoryBits;
+  int selector_entries = 1 << chooserBits;
+
+  bht_gshare = (uint8_t *)malloc(bht_entries * sizeof(uint8_t));
+
+  selector = (uint8_t *)malloc(selector_entries * sizeof(uint8_t)); // Selector table 
+
+  int i = 0;
+  for (i = 0; i < bht_entries; i++)
+  {
+    bht_gshare[i] = WN;  
+    selector[i] = WN;  
+  }
+
+  ghistory = 0; 
+}
+
+uint32_t custom_predict(uint32_t pc)
+{
+  uint32_t gshare_index = (pc ^ ghistory) & ((1 << ghistoryBits) - 1);
+  uint32_t selector_index = (pc ^ ghistory) & ((1 << chooserBits) - 1);
+
+  //make two predictions
+  uint8_t gshare_prediction = (bht_gshare[gshare_index] >= WT) ? TAKEN : NOTTAKEN;
+
+  uint8_t perceptron_pred = perceptron_prediction(pc);
+
+  //selector prediction
+  uint8_t selector_value = selector[selector_index];
+
+  //choose gshare or lht prediction based on selecgtor
+  return (selector_value >= WT) ? gshare_prediction : perceptron_pred;
+}
+
+void train_custom(uint32_t pc, uint8_t outcome)
+{
+  train_perceptron(pc, outcome);
+  uint32_t bht_entries = 1 << ghistoryBits;
+  uint32_t pc_lower_bits = pc & (bht_entries - 1);
+  uint32_t ghistory_lower_bits = ghistory & (bht_entries - 1);
+
+  uint32_t gshare_index = pc_lower_bits ^ ghistory_lower_bits;
+
+  //make two predictions
+  uint8_t gshare_prediction = gshare_predict(pc);
+
+  uint8_t perceptron_pred = perceptron_prediction(pc);
+
+  // Update selector based on otucome for each selector and actual outcome
+  if (gshare_prediction == outcome && perceptron_pred != outcome) //if gshare is correct and local is wrong
+  {
+    if (selector[gshare_index] < ST)
+    {
+      selector[gshare_index]++; //increment gshare priority
+    }
+  }
+  else if (perceptron_pred == outcome && gshare_prediction != outcome) // if local is correct and gshare is wrong
+  {
+    if (selector[gshare_index] > SN)
+    {
+      selector[gshare_index]--; //decrement gshare priority
+    }
+  }
+
+  // update gshare ght
+  train_gshare(pc, outcome);
+}
+
+
+
 
 void init_predictor()
 {
@@ -295,7 +369,7 @@ void init_predictor()
     init_tournament(); 
     break;
   case CUSTOM:
-    init_perceptron();
+    init_custom();
     break;
   default:
     break;
@@ -319,7 +393,7 @@ uint32_t make_prediction(uint32_t pc, uint32_t target, uint32_t direct)
   case TOURNAMENT:
     return tournament_predict(pc);
   case CUSTOM:
-    return perceptron_prediction(pc);
+    return custom_predict(pc);
   default:
     break;
   }
@@ -346,7 +420,7 @@ void train_predictor(uint32_t pc, uint32_t target, uint32_t outcome, uint32_t co
     case TOURNAMENT:
       return train_tournament(pc, outcome);
     case CUSTOM:
-      return train_perceptron(pc, outcome);
+      return train_custom(pc, outcome);
     default:
       break;
     }
