@@ -236,8 +236,8 @@ void cleanup_tournament()
   free(selector);
 }
 
-#define HISTORY_LENGTH 62
-#define NUM_PERCEPTRONS 125
+#define HISTORY_LENGTH 40
+#define NUM_PERCEPTRONS 199
 #define THRESHOLD (1.93 * HISTORY_LENGTH + 14)
 
 uint64_t globalHistory = 0;  
