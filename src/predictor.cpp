@@ -64,9 +64,12 @@ uint8_t *selector;
 //
 
 // gshare functions
-void init_gshare()
+void init_gshare(bool gshareGHistory)
 {
-  int bht_entries = 1 << ghistoryBitsGshare;
+  int bht_entries = 1 << ghistoryBits;
+  if(gshareGHistory){
+    bht_entries = 1 << ghistoryBitsGshare;
+  }
   bht_gshare = (uint8_t *)malloc(bht_entries * sizeof(uint8_t));
   int i = 0;
   for (i = 0; i < bht_entries; i++)
@@ -76,10 +79,16 @@ void init_gshare()
   ghistory = 0;
 }
 
-uint8_t gshare_predict(uint32_t pc)
+uint8_t gshare_predict(uint32_t pc, bool gshareGHistory)
 {
   // get lower ghistoryBits of pc
-  uint32_t bht_entries = 1 << ghistoryBitsGshare;
+  uint32_t bht_entries = 1 << ghistoryBits;
+
+  if(gshareGHistory)
+  {
+    bht_entries = 1 << ghistoryBitsGshare;
+  }
+
   uint32_t pc_lower_bits = pc & (bht_entries - 1);
   uint32_t ghistory_lower_bits = ghistory & (bht_entries - 1);
   uint32_t index = pc_lower_bits ^ ghistory_lower_bits;
@@ -99,10 +108,15 @@ uint8_t gshare_predict(uint32_t pc)
   }
 }
 
-void train_gshare(uint32_t pc, uint8_t outcome)
+void train_gshare(uint32_t pc, uint8_t outcome, bool gshareGHistory)
 {
   // get lower ghistoryBits of pc
-  uint32_t bht_entries = 1 << ghistoryBitsGshare;
+  uint32_t bht_entries = 1 << ghistoryBits;
+
+  if (gshareGHistory){
+    bht_entries = 1 << ghistoryBitsGshare;
+  }
+
   uint32_t pc_lower_bits = pc & (bht_entries - 1);
   uint32_t ghistory_lower_bits = ghistory & (bht_entries - 1);
   uint32_t index = pc_lower_bits ^ ghistory_lower_bits;
@@ -197,7 +211,7 @@ void train_tournament(uint32_t pc, uint8_t outcome)
   uint32_t lht_index = pc_lower_bits;
 
   //make two predictions
-  uint8_t gshare_prediction = gshare_predict(pc);
+  uint8_t gshare_prediction = gshare_predict(pc, false);
   uint8_t lht_prediction = (bht_lht[lht_index] == WT || bht_lht[lht_index] == ST) ? TAKEN : NOTTAKEN;
 
   uint32_t selector_index = (pc ^ ghistory) & ((1 << chooserBitsTournament) - 1);
@@ -238,7 +252,7 @@ void train_tournament(uint32_t pc, uint8_t outcome)
   local_history[lht_index] = (local_history[lht_index] << 1) | outcome;
 
   // update gshare ght
-  train_gshare(pc, outcome);
+  train_gshare(pc, outcome, false);
 }
 
 void cleanup_tournament()
@@ -345,7 +359,7 @@ void train_custom(uint32_t pc, uint8_t outcome)
   uint32_t gshare_index = pc_lower_bits ^ ghistory_lower_bits;
 
   //make two predictions
-  uint8_t gshare_prediction = gshare_predict(pc);
+  uint8_t gshare_prediction = gshare_predict(pc, false);
 
   uint8_t perceptron_pred = perceptron_prediction(pc);
 
@@ -369,7 +383,7 @@ void train_custom(uint32_t pc, uint8_t outcome)
   }
 
   // update gshare ght
-  train_gshare(pc, outcome);
+  train_gshare(pc, outcome, false);
 }
 
 
@@ -382,7 +396,7 @@ void init_predictor()
   case STATIC:
     break;
   case GSHARE:
-    init_gshare();
+    init_gshare(true);
     break;
   case TOURNAMENT:
     init_tournament(); 
@@ -408,7 +422,7 @@ uint32_t make_prediction(uint32_t pc, uint32_t target, uint32_t direct)
   case STATIC:
     return TAKEN;
   case GSHARE:
-    return gshare_predict(pc);
+    return gshare_predict(pc, true);
   case TOURNAMENT:
     return tournament_predict(pc);
   case CUSTOM:
@@ -435,7 +449,7 @@ void train_predictor(uint32_t pc, uint32_t target, uint32_t outcome, uint32_t co
     case STATIC:
       return;
     case GSHARE:
-      return train_gshare(pc, outcome);
+      return train_gshare(pc, outcome, true);
     case TOURNAMENT:
       return train_tournament(pc, outcome);
     case CUSTOM:
