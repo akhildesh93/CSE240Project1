@@ -262,10 +262,11 @@ void cleanup_tournament()
   free(local_history);
   free(selector);
 }
+//30, 130
 
-#define HISTORY_LENGTH 25
-#define NUM_PERCEPTRONS 274
-#define THRESHOLD (1.6 * HISTORY_LENGTH + 14)
+#define HISTORY_LENGTH 30
+#define NUM_PERCEPTRONS 132
+#define THRESHOLD (1.93 * HISTORY_LENGTH + 14)
 
 uint32_t globalHistory = 0;  
 int perceptrons[NUM_PERCEPTRONS][HISTORY_LENGTH + 1]; 
