@@ -33,11 +33,15 @@ int ghistoryBits = 16; // Number of bits used for Global History
 int ghistoryBitsGshare = 17;
 
 int lhistoryBits = 16;
-int chooserBits = 16;
+int chooserBits = 10;
 
 int chooserBitsTournament = 10;
 int bpType;            // Branch Prediction Type
 int verbose;
+
+int ghistoryBitsCustom = 15;
+int lhistoryBitsCustom = 15;
+int chooserBitsCustom = 16;
 
 //------------------------------------//
 //      Predictor Data Structures     //
@@ -311,19 +315,26 @@ void train_perceptron(uint32_t pc, uint8_t outcome) {
 
 void init_custom()
 {
-  init_perceptron();
   //entries
-  int bht_entries = 1 << ghistoryBits;
-  int selector_entries = 1 << chooserBits;
+  int bht_entries = 1 << ghistoryBitsCustom;
+  int lht_entries = 1 << lhistoryBitsCustom;
+  int selector_entries = 1 << chooserBitsCustom;
 
   bht_gshare = (uint8_t *)malloc(bht_entries * sizeof(uint8_t));
+  bht_lht = (uint8_t *)malloc(lht_entries * sizeof(uint8_t)); 
+  local_history = (uint64_t *)malloc(lht_entries * sizeof(uint64_t)); // Local history registers
 
-  selector = (uint8_t *)malloc(selector_entries * sizeof(uint8_t)); 
+  selector = (uint8_t *)malloc(selector_entries * sizeof(uint8_t)); // Selector table 
 
   int i = 0;
   for (i = 0; i < bht_entries; i++)
   {
     bht_gshare[i] = WN;  
+  }
+  for (i = 0; i< lht_entries; i++)
+  {
+    bht_lht[i] = WN;    
+    local_history[i] = 0; 
   }
   for (i = 0; i< selector_entries; i++)
   {
@@ -335,53 +346,70 @@ void init_custom()
 
 uint32_t custom_predict(uint32_t pc)
 {
-  uint32_t gshare_index = (pc ^ ghistory) & ((1 << ghistoryBits) - 1);
-  uint32_t selector_index = (pc ^ ghistory) & ((1 << chooserBits) - 1);
+  uint32_t gshare_index = (pc ^ ghistory) & ((1 << ghistoryBitsCustom) - 1);
+  uint32_t lht_index = pc & ((1 << lhistoryBitsCustom) - 1);
+  uint32_t selector_index = (pc ^ ghistory) & ((1 << chooserBitsCustom) - 1);
 
   //make two predictions
   uint8_t gshare_prediction = (bht_gshare[gshare_index] >= WT) ? TAKEN : NOTTAKEN;
-
-  uint8_t perceptron_pred = perceptron_prediction(pc);
+  uint8_t lht_prediction = (bht_lht[lht_index] >= WT) ? TAKEN : NOTTAKEN;
 
   //selector prediction
   uint8_t selector_value = selector[selector_index];
 
   //choose gshare or lht prediction based on selecgtor
-  return (selector_value >= WT) ? gshare_prediction : perceptron_pred;
+  return (selector_value >= WT) ? gshare_prediction : lht_prediction;
 }
 
 void train_custom(uint32_t pc, uint8_t outcome)
 {
-  train_perceptron(pc, outcome);
-  uint32_t bht_entries = 1 << ghistoryBits;
+  uint32_t bht_entries = 1 << ghistoryBitsCustom;
   uint32_t pc_lower_bits = pc & (bht_entries - 1);
   uint32_t ghistory_lower_bits = ghistory & (bht_entries - 1);
 
   uint32_t gshare_index = pc_lower_bits ^ ghistory_lower_bits;
+  uint32_t lht_index = pc_lower_bits;
 
   //make two predictions
   uint8_t gshare_prediction = gshare_predict(pc, false);
+  uint8_t lht_prediction = (bht_lht[lht_index] == WT || bht_lht[lht_index] == ST) ? TAKEN : NOTTAKEN;
 
-  uint8_t perceptron_pred = perceptron_prediction(pc);
-
-  uint32_t selector_index = (pc ^ ghistory) & ((1 << chooserBits) - 1);
-
+  uint32_t selector_index = (pc ^ ghistory) & ((1 << chooserBitsTournament) - 1);
 
   // Update selector based on otucome for each selector and actual outcome
-  if (gshare_prediction == outcome && perceptron_pred != outcome) //if gshare is correct and local is wrong
+  if (gshare_prediction == outcome && lht_prediction != outcome) //if gshare is correct and local is wrong
   {
     if (selector[selector_index] < ST)
     {
       selector[selector_index]++; //increment gshare priority
     }
   }
-  else if (perceptron_pred == outcome && gshare_prediction != outcome) // if local is correct and gshare is wrong
+  else if (lht_prediction == outcome && gshare_prediction != outcome) // if local is correct and gshare is wrong
   {
     if (selector[selector_index] > SN)
     {
       selector[selector_index]--; //decrement gshare priority
     }
   }
+
+  // update lht based on actual outcome
+  if (outcome == TAKEN)
+  {
+    if (bht_lht[lht_index] < ST)
+    {
+      bht_lht[lht_index]++;
+    }
+  }
+  else
+  {
+    if (bht_lht[lht_index] > SN)
+    {
+      bht_lht[lht_index]--;
+    }
+  }
+
+  // update local history
+  local_history[lht_index] = (local_history[lht_index] << 1) | outcome;
 
   // update gshare ght
   train_gshare(pc, outcome, false);
